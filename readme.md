@@ -10,9 +10,9 @@ https://kekse23.de/2017.02.22/778/diy-rc-usb-adapter-fuer-vrc-pro/
 # Code changes
 In comparison with the original code the following changes were made:
 
-* Initial auto calibration.
-* EEPROM storage of the calibration.
-* Refactor, joystick events are now sent at once, not individually for
+* Initial auto calibration support,
+* EEPROM storage of the calibration,
+* code refactor, joystick events are now sent at once, not individually for
   each axis, which may improve real-time performance.
 
 # Usage
