@@ -1,6 +1,6 @@
 /*
  * Jaroslav Škarvada <jskarvad@redhat.com>
- * 2025/04/20, added auto calibration
+ * 2025/04/20, refactor, added auto calibration, EEPROM support
  *
  * kekse23.de RCUSB4 v1.1
  * Copyright (c) 2020, Nicholas Regitz
@@ -24,22 +24,24 @@
 #define RXLED B,0
 #define TXLED D,5
 
+// channel logic is hardcoded, so it is not sufficient to
+// change the number of channels only here
 #define CHANNELS 4
 #define AXISMIN 750
 #define AXISMAX 2250
 
 // number of loop cycles for the axis initial auto calibration,
-// set to the 0 to disable the inital auto calibration
+// set it to the 0 to disable the inital auto calibration
 #define CALTIMER 10000
 // number of loop cycles to wait before performing calibration
 // to avoid transient states, e.g. during radio pairing and receiver
-// power on, set to the 0 to disable the wait
+// power on, set it to the 0 to disable the wait
 #define CALWAIT 4000
-// LED blink half period in loop cycles when calibrating
+// number of loop cycles for calibration LED blink (half period)
 #define CALBLINK 50
-// over 1/2 positive angle auto calibration threshold
+// over 1/2 positive angle for auto calibration threshold
 #define CALTHRESHPOS 1 / 2
-// bellow 1/2 negative angle auto calibration threshold
+// bellow 1/2 negative angle for auto calibration threshold
 #define CALTHRESHNEG 1 / 2
 
 #define CALZERO ((AXISMAX - AXISMIN) / 2 + AXISMIN)
@@ -62,7 +64,7 @@ unsigned int x;
 volatile unsigned long Time[CHANNELS];
 volatile unsigned int Value[CHANNELS];
 volatile bool ValChanged[CHANNELS];
-unsigned int NewValue[CHANNELS] = { 0 };
+unsigned int NewValue[CHANNELS];
 unsigned int AxisMax[CHANNELS];
 unsigned int AxisMin[CHANNELS];
 struct sEECal
@@ -137,6 +139,7 @@ void setup()
 {
   for (x = 0; x < CHANNELS; x++)
   {
+    NewValue[x] = CALZERO;
     AxisMax[x] = CALMAXTHRESH;
     AxisMin[x] = CALMINTHRESH;
   }
@@ -161,33 +164,45 @@ void loop()
   if (ValChanged[0])
   {
     NewValue[0] = (NewValue[0] + Value[0]) / 2;
-    Joystick.setXAxis(NewValue[0]);
+    if (!Caltimer)
+    {
+      Joystick.setXAxis(NewValue[0]);
+      Send = true;
+    }
     ValChanged[0] = false;
-    Send = true;
   }
 
   if (ValChanged[1])
   {
     NewValue[1] = (NewValue[1] + Value[1]) / 2;
-    Joystick.setYAxis(NewValue[1]);
+    if (!Caltimer)
+    {
+      Joystick.setYAxis(NewValue[1]);
+      Send = true;
+    }
     ValChanged[1] = false;
-    Send = true;
   }
 
   if (ValChanged[2])
   {
     NewValue[2] = (NewValue[2] + Value[2]) / 2;
-    Joystick.setRxAxis(NewValue[2]);
+    if (!Caltimer)
+    {
+      Joystick.setRxAxis(NewValue[2]);
+      Send = true;
+    }
     ValChanged[2] = false;
-    Send = true;
   }
 
   if (ValChanged[3])
   {
     NewValue[3] = (NewValue[3] + Value[3]) / 2;
-    Joystick.setRyAxis(NewValue[3]);
+    if (!Caltimer)
+    {
+      Joystick.setRyAxis(NewValue[3]);
+      Send = true;
+    }
     ValChanged[3] = false;
-    Send = true;
   }
 
   if (Calwait)
@@ -196,26 +211,27 @@ void loop()
   {
     for (x = 0; x < CHANNELS; x++)
     {
-      if (NewValue[x])
-      {
-        if (NewValue[x] > AxisMax[x] && NewValue[x] <= AXISMAX)
-          AxisMax[x] = NewValue[x];
-        if (NewValue[x] < AxisMin[x] && NewValue[x] >= AXISMIN)
-          AxisMin[x] = NewValue[x];
-      }
+      if (NewValue[x] > AxisMax[x] && NewValue[x] <= AXISMAX)
+        AxisMax[x] = NewValue[x];
+      if (NewValue[x] < AxisMin[x] && NewValue[x] >= AXISMIN)
+        AxisMin[x] = NewValue[x];
     }
     if (!(Caltimer % CALBLINK))
       portToggle(TXLED);
     Caltimer--;
     if (!Caltimer)
     {
-      // auto calibration end
-      Joystick.begin(false);
+      // auto calibration finish code
       EECalWrite = false;
+      Joystick.begin(false);
       Joystick.setXAxisRange(getaxismax(0), getaxismin(0));
       Joystick.setYAxisRange(getaxismax(1), getaxismin(1));
       Joystick.setRxAxisRange(getaxismax(2), getaxismin(2));
       Joystick.setRyAxisRange(getaxismax(3), getaxismin(3));
+      Joystick.setXAxis(NewValue[0]);
+      Joystick.setYAxis(NewValue[1]);
+      Joystick.setRxAxis(NewValue[2]);
+      Joystick.setRyAxis(NewValue[3]);
       if (EECalWrite)
       {
         EECal.ChkSum = eecalchksum(EECal);
@@ -225,7 +241,7 @@ void loop()
     }
   } else if (Send)
     Joystick.sendState();
-  
+
   delay(1);
 }
 
