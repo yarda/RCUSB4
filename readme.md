@@ -70,10 +70,10 @@ possible shorts if the receiver is really badly wired (normally, reversing the
 servo connector is safe, because VCC is in the middle and PWM output can
 usually withstand 5V/GND without problem).
 
-![Wiring](/promicro_wiring.png)
-
 For some reason currently unknown to me, the Arduino boards have the port D
 marked differently from the datasheet, so I used the wiring table above.
+
+![Wiring](/promicro_wiring.png)
 
 # Case
 Good 3D printed case design:
